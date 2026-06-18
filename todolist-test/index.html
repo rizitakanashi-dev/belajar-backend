@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golang + MariaDB To-Do List</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 min-h-screen py-10">
+
+    <div class="max-w-md mx-auto bg-white rounded-xl shadow-md p-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">📝 My To-Do List</h1>
+
+        <form id="todo-form" class="mb-6 space-y-3">
+            <div>
+                <input type="text" id="todo-title" placeholder="Judul tugas (wajib)..." 
+                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
+            <div>
+                <textarea id="todo-desc" placeholder="Deskripsi tugas (opsional)..." 
+                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="2"></textarea>
+            </div>
+            <button type="submit" 
+                class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg transition duration-200">
+                + Tambah Tugas
+            </button>
+        </form>
+
+        <hr class="border-gray-200 mb-4">
+
+        <div id="todo-list" class="space-y-3">
+            <p class="text-center text-gray-500 text-sm">Memuat data...</p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8080/todos";
+        const todoForm = document.getElementById("todo-form");
+        const todoList = document.getElementById("todo-list");
+
+        // 1. FUNGSI UNTUK MENGAMBIL DATA DARI BACKEND (GET ALL)
+        async function fetchTodos() {
+            try {
+                const response = await fetch(API_URL);
+                const result = await response.json();
+                const todos = result.data || [];
+
+                todoList.innerHTML = ""; // Bersihkan list lama
+
+                if (todos.length === 0) {
+                    todoList.innerHTML = `<p class="text-center text-gray-400 text-sm py-4">Belum ada tugas hari ini.</p>`;
+                    return;
+                }
+
+                todos.forEach(todo => {
+                    const todoItem = document.createElement("div");
+                    todoItem.className = `flex items-center justify-between p-3 border rounded-lg ${todo.completed ? 'bg-gray-50 border-gray-200' : 'bg-white border-blue-100 shadow-xs'}`;
+                    
+                    todoItem.innerHTML = `
+                        <div class="flex-1 pr-4">
+                            <h3 class="font-semibold ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}">${todo.title}</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">${todo.description || '-'}</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="toggleTodo(${todo.id}, '${todo.title}', '${todo.description}', ${todo.completed})" 
+                                class="px-2 py-1 text-xs rounded font-medium ${todo.completed ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}">
+                                ${todo.completed ? 'Batal' : 'Selesai'}
+                            </button>
+                            <button onclick="deleteTodo(${todo.id})" 
+                                class="px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded font-medium">
+                                Hapus
+                            </button>
+                        </div>
+                    `;
+                    todoList.appendChild(todoItem);
+                });
+            } catch (error) {
+                todoList.innerHTML = `<p class="text-center text-red-500 text-sm">Gagal terhubung ke server API.</p>`;
+            }
+        }
+
+        // 2. FUNGSI UNTUK MENGIRIM DATA BARU (POST)
+        todoForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            
+            const title = document.getElementById("todo-title").value;
+            const description = document.getElementById("todo-desc").value;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ title, description })
+                });
+
+                if (response.ok) {
+                    todoForm.reset(); // Kosongkan form input
+                    fetchTodos();    // Refresh daftar tugas
+                } else {
+                    alert("Gagal menambah tugas");
+                }
+            } catch (error) {
+                console.error("Error:", error);
+            }
+        });
+
+        // 3. FUNGSI UNTUK MENGUBAH STATUS SELESAI (PUT)
+        async function toggleTodo(id, title, description, currentStatus) {
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        title: title,
+                        description: description,
+                        completed: !currentStatus // Membalikkan status sebelumnya
+                    })
+                });
+
+                if (response.ok) {
+                    fetchTodos(); // Refresh daftar tugas
+                }
+            } catch (error) {
+                console.error("Error:", error);
+            }
+        }
+
+        // 4. FUNGSI UNTUK MENGHAPUS TUGAS (DELETE)
+        async function deleteTodo(id) {
+            if (!confirm("Apakah Anda yakin ingin menghapus tugas ini?")) return;
+
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: "DELETE"
+                });
+
+                if (response.ok) {
+                    fetchTodos(); // Refresh daftar tugas
+                }
+            } catch (error) {
+                console.error("Error:", error);
+            }
+        }
+
+        // Jalankan fungsi fetch pertama kali saat halaman dibuka
+        fetchTodos();
+    </script>
+</body>
+</html>
